@@ -130,12 +130,7 @@ def _dispatch(request):
 
 
 # === networking (BACKGROUND thread; blocking is fine here) ===================
-def _serve():
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind((HOST, PORT))
-    srv.listen(8)
-    srv.settimeout(0.5)
+def _serve(srv):
     print(f"[clo-mcp] listening on {HOST}:{PORT}")
     while not _stop.is_set():
         try:
@@ -145,7 +140,10 @@ def _serve():
         except OSError:
             break
         threading.Thread(target=_client, args=(conn,), daemon=True).start()
-    srv.close()
+    try:
+        srv.close()
+    except OSError:
+        pass
     print("[clo-mcp] listener stopped")
 
 
@@ -198,14 +196,55 @@ def _install_qt_pump():
     return None
 
 
+def stop():
+    """Stop a running listener. Safe to call when nothing is running."""
+    import builtins
+    _stop.set()
+    prev = getattr(builtins, "_CLO_MCP", None)
+    if prev:
+        srv = prev.get("srv")
+        if srv is not None:
+            try:
+                srv.close()
+            except OSError:
+                pass
+        timer = prev.get("timer")
+        if timer is not None:
+            try:
+                timer.stop()
+            except Exception:  # noqa: BLE001
+                pass
+        builtins._CLO_MCP = None
+    print("[clo-mcp] stopped")
+
+
 def start():
-    threading.Thread(target=_serve, daemon=True).start()
+    import builtins
+    # Re-run safety: an earlier Run may have left a listener bound to the port.
+    if getattr(builtins, "_CLO_MCP", None):
+        stop()
+    _stop.clear()
+
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((HOST, PORT))  # bind on the main thread so a port clash fails loudly
+    srv.listen(8)
+    srv.settimeout(0.5)
+
+    net = threading.Thread(target=_serve, args=(srv,), daemon=True)
+    net.start()
+
     timer = _install_qt_pump()
     if timer is None:
         print("[clo-mcp] WARNING: no Qt timer available — running handlers on the "
               "network thread. CLO API calls may be unsafe off the main thread.")
         # Fallback: drain on a background thread. Risky but better than nothing.
         threading.Thread(target=_fallback_pump, daemon=True).start()
+
+    # Persist references on builtins so they outlive this script's module scope.
+    # CLO may discard the module globals once Run Python Script returns, which
+    # would otherwise garbage-collect the timer/socket and kill the listener.
+    builtins._CLO_MCP = {"srv": srv, "timer": timer, "net": net}
     return timer
 
 
@@ -218,10 +257,7 @@ def _fallback_pump():
         reply.put(_dispatch(request))
 
 
-# Keep a module-level reference so the Qt timer survives after the script
-# returns control to CLO.
-_TIMER = None
 try:
-    _TIMER = start()
+    start()
 except Exception:  # pragma: no cover
     traceback.print_exc()
