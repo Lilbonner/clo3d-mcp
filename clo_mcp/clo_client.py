@@ -8,12 +8,14 @@ operating on a stale socket. See protocol.md for the wire format.
 from __future__ import annotations
 
 import json
+import os
 import socket
 import uuid
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 5005
-DEFAULT_TIMEOUT = 600.0  # simulation / render can be slow; generous by design.
+DEFAULT_HOST = os.environ.get("CLO_MCP_HOST", "127.0.0.1")
+DEFAULT_PORT = int(os.environ.get("CLO_MCP_PORT", "5005"))
+# simulation / render can be slow; generous by design.
+DEFAULT_TIMEOUT = float(os.environ.get("CLO_MCP_TIMEOUT", "600"))
 
 
 class CloError(RuntimeError):

@@ -23,13 +23,14 @@ how the *_api handles are obtained, and that Qt is importable here.
 """
 
 import json
+import os
 import queue
 import socket
 import threading
 import traceback
 
-HOST = "127.0.0.1"
-PORT = 5005
+HOST = os.environ.get("CLO_MCP_HOST", "127.0.0.1")
+PORT = int(os.environ.get("CLO_MCP_PORT", "5005"))
 
 # --- queue of (request_dict, reply_queue) pending main-thread execution ------
 _work = queue.Queue()
