@@ -149,12 +149,16 @@ def _serve(srv):
 
 def _client(conn):
     with conn:
+        conn.settimeout(30.0)  # a stalled client must not pin a thread forever
         data = b""
-        while b"\n" not in data:
-            chunk = conn.recv(4096)
-            if not chunk:
-                return
-            data += chunk
+        try:
+            while b"\n" not in data:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    return
+                data += chunk
+        except socket.timeout:
+            return
         line = data.split(b"\n", 1)[0]
         try:
             request = json.loads(line)
