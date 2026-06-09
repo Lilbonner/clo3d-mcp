@@ -68,3 +68,18 @@ Checked via `clo_addon/diagnose.py`:
 
 `PYTHONPATH=. python tests/test_clo_client.py` → `ok` (2 passing). All modules
 compile under Python 3.13.
+
+### Live validation — CLO 7 (Python 3.7.9), blocking main-thread mode
+
+End-to-end smoke test against a running CLO 7 instance (listener started via
+Run Python Script, driven from the host over the socket):
+
+| command | result |
+|---|---|
+| `ping` | `{"ok": true, "result": {"clo": true}}` |
+| `pattern_count` | `{"ok": true, "result": {"count": 7}}` — real `pattern_api.GetPatternCount()` |
+| `shutdown` | `{"ok": true, "result": {"stopping": true}}` — CLO UI became interactive again |
+
+Confirms the full chain (host → socket → listener → CLO API → response) and that
+`shutdown` cleanly releases the main thread. Write/simulate/render commands not
+yet exercised.
