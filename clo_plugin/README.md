@@ -61,6 +61,26 @@ Register/locate it via **Settings → Plug-in**: the action **"MCP Listener
 (start / stop)"** appears there. Click it to start the listener on `127.0.0.1:5005`
 (UI stays live); click again to stop.
 
+## Gotcha: CLO loads the plugin DLL per call
+
+CLO 7.3 does **not** keep the plugin DLL loaded: it `LoadLibrary`s the .dll
+before *every* export call (`GetActionName`, `DoFunction`, …) and
+`FreeLibrary`s it right after the call returns. Any static state — including
+the listener — dies with the unload: the server starts and is destroyed
+milliseconds later, with no crash and no visible error. (Tell-tale symptom:
+overwriting the .dll *succeeds while CLO is running*, because a loaded DLL
+would be write-locked.)
+
+The fix in `plugin_main.cpp`: `DoFunction()` pins the module via
+`GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | …_PIN, …)`.
+After the pin, the next `LoadLibrary` returns the same instance, so state
+persists and the start/stop toggle works.
+
+Debugging channel: CLO swallows plugin exceptions and `qWarning`. The plugin
+appends every export call, the attach path, and listen results to
+`C:/Users/Public/Documents/CLO/clo_mcp_plugin.log` — read that file to see
+where the chain breaks.
+
 ## What's wired
 
 All `clo_mcp_listener.py` commands map to the C++ API (`clo_api_clo.cpp`), except
