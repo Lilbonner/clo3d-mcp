@@ -22,8 +22,12 @@ static void pluginLog(const char* msg) {
 
 #ifdef _WIN32
 #  include <windows.h>
-BOOL APIENTRY DllMain(HMODULE, DWORD reason, LPVOID) {
-    if (reason == DLL_PROCESS_ATTACH) pluginLog("DllMain: attached");
+BOOL APIENTRY DllMain(HMODULE h, DWORD reason, LPVOID) {
+    if (reason == DLL_PROCESS_ATTACH) {
+        char path[MAX_PATH] = "?";
+        GetModuleFileNameA(h, path, MAX_PATH);
+        pluginLog((std::string("DllMain: attached from ") + path).c_str());
+    }
     return TRUE;
 }
 #  define CLO_PLUGIN_SPECIFIER __declspec(dllexport)
