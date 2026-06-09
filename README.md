@@ -86,16 +86,27 @@ pip install -e .
 1. Открой CLO3D.
 2. Main Menu → **Edit → Python Script → Run Python Script**.
 3. Выбери файл `clo_addon/clo_mcp_listener.py`.
-4. В Log Console должно появиться:
-   ```
-   [clo-mcp] listening on 127.0.0.1:5005
-   [clo-mcp] main-thread pump via PySide6.QtCore.QTimer
-   ```
-   Строка про `QTimer` — это главное: значит вызовы CLO API идут на главном
-   потоке. Если вместо неё `WARNING: no Qt timer available` — см. «Траблшутинг».
+4. В Log Console появится одно из двух:
 
-> Листенер должен оставаться запущенным всё время, пока ты работаешь через MCP.
+   **CLO 7 (Python без Qt) — блокирующий режим (типичный случай):**
+   ```
+   [clo-mcp] no Qt binding found — blocking main-thread mode.
+   [clo-mcp] listening on 127.0.0.1:5005 (blocking main-thread mode)
+   ```
+   Команды CLO API выполняются на главном потоке (безопасно), но **UI CLO
+   «занят», пока листенер работает** — это нормально. Чтобы вернуть управление
+   CLO, попроси Claude вызвать `clo_shutdown` (или закрой CLO).
+
+   **Сборка с Qt — отзывчивый режим:**
+   ```
+   [clo-mcp] main-thread pump via PySide6.QtCore.QTimer
+   [clo-mcp] ready (responsive mode)
+   ```
+   Здесь UI остаётся отзывчивым, листенер крутится в фоне.
+
 > Повторный запуск скрипта безопасен — старый экземпляр останавливается сам.
+> Проверить окружение перед запуском можно скриптом `clo_addon/diagnose.py`
+> (тем же Run Python Script): он печатает версию Python, доступные API-модули и Qt.
 
 ### Шаг 2. Подключить MCP-сервер к хосту
 
@@ -124,6 +135,9 @@ claude mcp add clo3d -- python -m clo_mcp.server
 
 > «импортируй C:/work/dress.zprj и просимулируй 80 кадров»
 > «назначь ткань из C:/fabrics/denim.zfab на паттерн 0 и отрендери картинку»
+
+Когда закончишь — попроси «**вызови clo_shutdown**», чтобы остановить листенер и
+вернуть управление окну CLO (актуально для блокирующего режима CLO 7).
 
 ### Настройка порта (если 5005 занят)
 
@@ -161,6 +175,7 @@ PYTHONPATH=. python tests/test_clo_client.py   # ожидается: ok
 | Симптом | Причина / решение |
 |---|---|
 | `Cannot reach CLO listener` | CLO не открыт, или листенер не запущен, или порт не совпадает (см. env-переменные). |
-| `WARNING: no Qt timer available` | В Python CLO нет PySide/PyQt → команды идут на небезопасном потоке. Найди доступный Qt-модуль. |
-| `CLO API handles not found` | Поправь `_apis()` (см. пункт 1 выше). |
+| `no Qt binding found` в логе | Норма для CLO 7: листенер ушёл в блокирующий главнопоточный режим. UI CLO «занят» до `clo_shutdown`. |
+| UI CLO не реагирует | Ожидаемо в блокирующем режиме — листенер держит главный поток. Вызови `clo_shutdown`. |
+| `CLO API modules not importable` | Скрипт запущен не внутри CLO. Запускай через Edit → Python Script → Run. |
 | Команда зависает | Долгая симуляция/рендер — увеличь `CLO_MCP_TIMEOUT`. |

@@ -39,14 +39,23 @@ to not just fork it.
 | L3 | **No protocol version / handshake.** A `ping` returning a version would let the server detect a stale listener. | ⬜ Add `version` to the `ping` result post-MVP. |
 | L4 | **No structured logging.** `print()` to CLO's console is fine for now. | ⬜ |
 
-## `# VERIFY` items (only checkable inside running CLO)
+## `# VERIFY` items — results from live CLO 7 (Python 3.7.9)
 
-1. **API handles** — how CLO exposes `import_api` / `export_api` / `fabric_api`
-   / `pattern_api` / `utility_api` to the Python editor. Edit `_apis()` in
-   `clo_addon/clo_mcp_listener.py`; nothing downstream changes.
-2. **Qt binding** — which of `PySide6` / `PySide2` / `PyQt5` is importable, so
-   the main-thread timer pump engages instead of the unsafe fallback.
-3. **H1** — that the listener keeps answering after the script returns.
+Checked via `clo_addon/diagnose.py`:
+
+1. **API handles** — ✅ Resolved. `import_api` / `export_api` / `fabric_api` /
+   `pattern_api` / `utility_api` are importable modules. `_apis()` now imports
+   them directly. (`ApiTypes` is **not** importable in CLO 7 — affects only the
+   options arg of `AutoHang`, see M2.)
+2. **Qt binding** — ✅ Resolved (by design change). None of PySide6/PySide2/PyQt5
+   exist in CLO 7's embedded Python, so the main-thread timer pump is impossible.
+   The listener now runs a **blocking main-thread server** when no Qt is found:
+   CLO API calls happen on the main thread (safe), CLO's UI is busy while
+   serving, and a `shutdown` command returns control. The Qt timer path remains
+   for builds that do expose Qt.
+3. **H1 (listener lifetime)** — N/A in blocking mode: the script never returns
+   while serving, so there are no module-scope globals to be collected. Still
+   relevant only for the Qt/responsive path.
 
 ## What's intentionally not here yet
 
