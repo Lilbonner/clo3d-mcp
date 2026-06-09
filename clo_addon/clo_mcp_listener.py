@@ -58,10 +58,14 @@ def _apis():
 
 # === command handlers (run on the MAIN thread) ===============================
 def _handle(command, params):
-    import_api, export_api, fabric_api, pattern_api, utility_api = _apis()
-
     if command == "ping":
         return {"clo": True}
+
+    if command == "shutdown":
+        _stop.set()
+        return {"stopping": True}
+
+    import_api, export_api, fabric_api, pattern_api, utility_api = _apis()
 
     if command == "import_project":
         import_api.ImportFile(params["path"])
@@ -222,6 +226,53 @@ def stop():
     print("[clo-mcp] stopped")
 
 
+def _serve_blocking():
+    """Serve on THIS (main) thread until shutdown. Used when no Qt is available
+    (e.g. CLO 7's embedded Python exposes no PySide/PyQt): the only main-thread
+    time we get is this script's own run, so CLO API calls happen here, safely.
+    CLO's UI is unresponsive while this runs — send `shutdown` to end it."""
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind((HOST, PORT))
+    srv.listen(8)
+    srv.settimeout(0.5)
+    print(f"[clo-mcp] listening on {HOST}:{PORT} (blocking main-thread mode)")
+    try:
+        while not _stop.is_set():
+            try:
+                conn, _ = srv.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            with conn:
+                conn.settimeout(30.0)
+                data = b""
+                try:
+                    while b"\n" not in data:
+                        chunk = conn.recv(4096)
+                        if not chunk:
+                            break
+                        data += chunk
+                except socket.timeout:
+                    continue
+                if b"\n" not in data:
+                    continue
+                try:
+                    request = json.loads(data.split(b"\n", 1)[0])
+                except json.JSONDecodeError:
+                    conn.sendall(b'{"ok":false,"error":"bad JSON"}\n')
+                    continue
+                response = _dispatch(request)  # CLO API runs on the main thread
+                conn.sendall((json.dumps(response) + "\n").encode("utf-8"))
+    finally:
+        try:
+            srv.close()
+        except OSError:
+            pass
+        print("[clo-mcp] listener stopped")
+
+
 def start():
     import builtins
     # Re-run safety: an earlier Run may have left a listener bound to the port.
@@ -229,36 +280,29 @@ def start():
         stop()
     _stop.clear()
 
-    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    srv.bind((HOST, PORT))  # bind on the main thread so a port clash fails loudly
-    srv.listen(8)
-    srv.settimeout(0.5)
-
-    net = threading.Thread(target=_serve, args=(srv,), daemon=True)
-    net.start()
-
     timer = _install_qt_pump()
-    if timer is None:
-        print("[clo-mcp] WARNING: no Qt timer available — running handlers on the "
-              "network thread. CLO API calls may be unsafe off the main thread.")
-        # Fallback: drain on a background thread. Risky but better than nothing.
-        threading.Thread(target=_fallback_pump, daemon=True).start()
+    if timer is not None:
+        # Responsive mode: socket on a background thread, CLO API dispatched on
+        # the main thread by the Qt timer. The script returns; CLO stays usable.
+        srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind((HOST, PORT))
+        srv.listen(8)
+        srv.settimeout(0.5)
+        net = threading.Thread(target=_serve, args=(srv,), daemon=True)
+        net.start()
+        # Persist references so the timer/socket outlive the script's module scope.
+        builtins._CLO_MCP = {"srv": srv, "timer": timer, "net": net}
+        print("[clo-mcp] ready (responsive mode)")
+        return timer
 
-    # Persist references on builtins so they outlive this script's module scope.
-    # CLO may discard the module globals once Run Python Script returns, which
-    # would otherwise garbage-collect the timer/socket and kill the listener.
-    builtins._CLO_MCP = {"srv": srv, "timer": timer, "net": net}
-    return timer
-
-
-def _fallback_pump():
-    while not _stop.is_set():
-        try:
-            request, reply = _work.get(timeout=0.2)
-        except queue.Empty:
-            continue
-        reply.put(_dispatch(request))
+    # No Qt (CLO 7): block the main thread serving requests. Returns to CLO when
+    # a `shutdown` command arrives.
+    print("[clo-mcp] no Qt binding found — blocking main-thread mode.")
+    print("[clo-mcp] CLO will be busy while serving; use the shutdown tool to stop.")
+    builtins._CLO_MCP = {"srv": None, "timer": None, "net": None, "blocking": True}
+    _serve_blocking()
+    return None
 
 
 try:

@@ -43,6 +43,22 @@ def clo_ping() -> str:
     return "CLO listener is up."
 
 
+@mcp.tool()
+def clo_shutdown() -> str:
+    """Stop the in-CLO listener and hand control back to CLO's UI.
+
+    Needed for the blocking main-thread mode CLO uses when no Qt binding is
+    available: the listener occupies CLO until this is called.
+    """
+    try:
+        _run("shutdown")
+    except RuntimeError:
+        # The listener may close the socket as it stops before we read a reply;
+        # treat an unreachable listener here as already-stopped.
+        pass
+    return "Listener shutting down; CLO is interactive again."
+
+
 # --- import -----------------------------------------------------------------
 
 @mcp.tool()

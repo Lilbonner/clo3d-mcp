@@ -36,6 +36,7 @@ exceptions from CLO API calls and reports them as `ok: false`.
 | command | params | result |
 |---|---|---|
 | `ping` | `{}` | `{"clo": true}` |
+| `shutdown` | `{}` | `{"stopping": true}` (ends blocking main-thread mode) |
 | `import_project` | `{"path": str}` | `{}` |
 | `import_avatar` | `{"path": str, "options": int?}` | `{}` |
 | `auto_hang` | `{"garment": str, "hanger": str, "bottom": bool}` | `{}` |
