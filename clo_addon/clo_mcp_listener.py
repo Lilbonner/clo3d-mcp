@@ -110,12 +110,22 @@ def _handle(command, params):
         return {}
 
     if command == "render_image":
-        paths = export_api.ExportRenderingImage(True)
-        return {"paths": list(paths) if paths else []}
+        # ExportRenderingImage returns a nested list (per colorway) — flatten it.
+        raw = export_api.ExportRenderingImage(True) or []
+        flat = []
+        for item in raw:
+            if isinstance(item, (list, tuple)):
+                flat.extend(item)
+            else:
+                flat.append(item)
+        return {"paths": flat}
 
     if command == "export_zprj":
-        export_api.ExportZPrj(params["path"])
-        return {}
+        # ExportZPrj returns the saved path, or "" on failure.
+        out = export_api.ExportZPrj(params["path"])
+        if not out:
+            raise RuntimeError("ExportZPrj returned empty path (export failed)")
+        return {"path": out}
 
     if command == "pattern_count":
         return {"count": pattern_api.GetPatternCount()}

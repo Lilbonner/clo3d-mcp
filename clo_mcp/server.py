@@ -160,8 +160,8 @@ def render_image() -> str:
 @mcp.tool()
 def export_zprj(path: str) -> str:
     """Save the current scene as a .zprj project file."""
-    _run("export_zprj", {"path": os.path.expanduser(path)})
-    return f"Saved project to {path}."
+    result = _run("export_zprj", {"path": os.path.expanduser(path)})
+    return f"Saved project to {result.get('path', path)}."
 
 
 @mcp.tool()

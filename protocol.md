@@ -45,7 +45,7 @@ exceptions from CLO API calls and reports them as `ok: false`.
 | `assign_fabric` | `{"fabric_index": int, "pattern_index": int}` | `{}` |
 | `set_fabric_color` | `{"colorway": int, "fabric_index": int, "face": int, "r": float, "g": float, "b": float, "a": float}` | `{}` |
 | `render_image` | `{}` | `{"paths": [str]}` |
-| `export_zprj` | `{"path": str}` | `{}` |
+| `export_zprj` | `{"path": str}` | `{"path": str}` (saved file path) |
 | `copy_colorway` | `{"index": int}` | `{"new_index": int}` |
 | `set_colorway` | `{"index": int, "name": str?}` | `{}` |
 | `pattern_count` | `{}` | `{"count": int}` |
