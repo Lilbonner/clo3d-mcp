@@ -42,3 +42,27 @@ add_executable(clo_mcp_test
     clo_api_stub.cpp
 )
 target_link_libraries(clo_mcp_test PRIVATE clo_mcp_core)
+
+# --- the actual CLO plugin (needs the SDK) ---------------------------------
+# cmake -S . -B build -DCLO_SDK_DIR=C:/path/to/CLO_SDK_v7.3.240
+if(CLO_SDK_DIR)
+    set(CLO_IFACE "${CLO_SDK_DIR}/CLOAPIInterface")
+    find_library(CLO_API_INTERFACE_LIB NAMES CLOAPIInterface PATHS "${CLO_IFACE}/Lib" REQUIRED)
+    message(STATUS "clo-mcp: plugin -> ${CLO_API_INTERFACE_LIB}")
+
+    add_library(clo_mcp_plugin SHARED
+        plugin_main.cpp
+        clo_api_clo.cpp
+    )
+    target_include_directories(clo_mcp_plugin PRIVATE "${CLO_IFACE}")
+    target_link_libraries(clo_mcp_plugin PRIVATE clo_mcp_core ${CLO_API_INTERFACE_LIB})
+    if(MSVC)
+        target_compile_definitions(clo_mcp_plugin PRIVATE UNICODE _WINDOWS _USRDLL BOMAPIDLL_EXPORTS)
+    endif()
+    # CLOAPIInterface.dll must sit next to the plugin (and ship into the Plugins folder).
+    add_custom_command(TARGET clo_mcp_plugin POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CLO_IFACE}/Lib/CLOAPIInterface.dll" "$<TARGET_FILE_DIR:clo_mcp_plugin>")
+else()
+    message(STATUS "clo-mcp: CLO_SDK_DIR not set -> building clo_mcp_test only (stub)")
+endif()
