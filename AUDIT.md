@@ -76,10 +76,18 @@ Run Python Script, driven from the host over the socket):
 
 | command | result |
 |---|---|
-| `ping` | `{"ok": true, "result": {"clo": true}}` |
-| `pattern_count` | `{"ok": true, "result": {"count": 7}}` — real `pattern_api.GetPatternCount()` |
-| `shutdown` | `{"ok": true, "result": {"stopping": true}}` — CLO UI became interactive again |
+| `ping` | `{"clo": true}` |
+| `pattern_count` | `{"count": 7}` — real `pattern_api.GetPatternCount()` |
+| `export_zprj` | wrote `clo_mcp_smoke.zprj` (3.0 MB) to disk |
+| `simulate(20)` | `ok` — cloth solver ran on the main thread |
+| `render_image` | wrote `output_Colorway A_1.png` (66 KB) to disk |
+| `shutdown` | `{"stopping": true}` — CLO UI became interactive again |
 
-Confirms the full chain (host → socket → listener → CLO API → response) and that
-`shutdown` cleanly releases the main thread. Write/simulate/render commands not
-yet exercised.
+Confirms the **full MVP path** end to end (host → socket → listener → CLO API →
+real output files) in blocking main-thread mode, and that `shutdown` cleanly
+releases the main thread. The scriptable CLO operations (simulate/render) run
+fine synchronously without a Qt event loop, as expected.
+
+Two refinements found during this run and fixed: `render_image` now flattens the
+per-colorway nested list CLO returns, and `export_zprj` returns the saved path
+(CLO's `ExportZPrj` return value) instead of an empty object.
