@@ -68,6 +68,19 @@ CLO_PLUGIN_SPECIFIER void DoFunction() {
             if (UTILITY_API) UTILITY_API->DisplayMessageBox("MCP listener stopped.");
             return;
         }
+#ifdef _WIN32
+        // CLO loads this DLL fresh for every export call and frees it as soon as
+        // DoFunction returns — which would destroy g_server (and the listener)
+        // with it. Pin the module so it survives; LoadLibrary on the next click
+        // returns this same pinned instance, so the start/stop toggle still works.
+        HMODULE self = nullptr;
+        if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_PIN,
+                               reinterpret_cast<LPCWSTR>(&DoFunction), &self))
+            pluginLog("DoFunction: module pinned (survives FreeLibrary)");
+        else
+            pluginLog("DoFunction: WARNING: failed to pin module");
+#endif
         g_server = std::make_unique<CloMcpServer>(makeCloBackend());
         pluginLog("DoFunction: server object created");
         if (g_server->start(QStringLiteral("127.0.0.1"), kPort)) {
