@@ -38,22 +38,21 @@ _stop = threading.Event()
 
 
 # === CLO API access ==========================================================
-# VERIFY: confirm how CLO exposes the API objects to the Python editor. The docs
-# reference them as import_api / export_api / fabric_api / pattern_api /
-# utility_api. They may be importable, or injected as globals. Adjust this one
-# function and nothing else downstream changes.
+# CLO exposes its API as importable modules (per the CLO API docs / scenarios):
+#   import import_api / export_api / fabric_api / pattern_api / utility_api
+# ApiTypes holds the option structs (e.g. AutoHang options) when those are needed.
 def _apis():
-    # Example shapes to try in your build — keep the one that resolves:
-    #   import CLOAPI; return CLOAPI.import_api, CLOAPI.export_api, ...
-    #   return import_api, export_api, fabric_api, pattern_api, utility_api
-    g = globals()
     try:
-        return (g["import_api"], g["export_api"], g["fabric_api"],
-                g["pattern_api"], g["utility_api"])
-    except KeyError as exc:  # pragma: no cover - environment dependent
+        import import_api
+        import export_api
+        import fabric_api
+        import pattern_api
+        import utility_api
+        return import_api, export_api, fabric_api, pattern_api, utility_api
+    except ImportError as exc:  # pragma: no cover - only importable inside CLO
         raise RuntimeError(
-            "CLO API handles not found. Edit _apis() in clo_mcp_listener.py to "
-            "match how your CLO build exposes import_api/export_api/etc."
+            f"CLO API modules not importable ({exc}). This script must run inside "
+            "CLO (Edit -> Python Script -> Run), not a plain Python interpreter."
         ) from exc
 
 
