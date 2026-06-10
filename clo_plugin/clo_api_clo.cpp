@@ -120,6 +120,12 @@ public:
     int seamCount() override {
         return PATTERN_API->GetSeamlinePairGroupCount();
     }
+
+    int createPattern(const std::vector<std::tuple<float, float, int>>& points) override {
+        // CreatePatternWithPoints returns the new pattern index (0 is valid:
+        // an empty scene's first piece). The SDK gives no failure signal.
+        return PATTERN_API->CreatePatternWithPoints(points);
+    }
 };
 
 }  // namespace

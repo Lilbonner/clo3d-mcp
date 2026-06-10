@@ -81,6 +81,10 @@ public:
         qInfo("[stub] seam_count");
         return 0;
     }
+    int createPattern(const std::vector<std::tuple<float, float, int>>& points) override {
+        qInfo("[stub] create_pattern with %d points", static_cast<int>(points.size()));
+        return 0;
+    }
 };
 
 }  // namespace

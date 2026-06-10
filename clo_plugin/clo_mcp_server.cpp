@@ -184,5 +184,20 @@ QJsonObject CloMcpServer::dispatch(const QString& command, const QJsonObject& pa
     }
     if (command == "seam_count")     return QJsonObject{{"count", api_->seamCount()}};
 
+    if (command == "create_pattern") {
+        std::vector<std::tuple<float, float, int>> points;
+        for (const QJsonValue& v : params.value("points").toArray()) {
+            const QJsonArray p = v.toArray();
+            if (p.size() < 2)
+                throw std::runtime_error("create_pattern: each point must be [x, y] or [x, y, type]");
+            points.emplace_back(static_cast<float>(p.at(0).toDouble()),
+                                static_cast<float>(p.at(1).toDouble()),
+                                p.at(2).toInt(0));
+        }
+        if (points.size() < 3)
+            throw std::runtime_error("create_pattern: need at least 3 points");
+        return QJsonObject{{"pattern_index", api_->createPattern(points)}};
+    }
+
     throw std::runtime_error("unknown command: " + command.toStdString());
 }

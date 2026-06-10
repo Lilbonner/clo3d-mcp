@@ -163,6 +163,13 @@ def _handle(command, params):
     if command == "seam_count":
         return {"count": pattern_api.GetSeamlinePairGroupCount()}
 
+    if command == "create_pattern":
+        points = [(float(p[0]), float(p[1]), int(p[2]) if len(p) > 2 else 0)
+                  for p in params["points"]]
+        if len(points) < 3:
+            raise ValueError("create_pattern needs at least 3 points")
+        return {"pattern_index": pattern_api.CreatePatternWithPoints(points)}
+
     raise ValueError(f"unknown command: {command}")
 
 

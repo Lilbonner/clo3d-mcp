@@ -248,6 +248,21 @@ def seam_count() -> str:
     return f"{result.get('count')} seamline pair groups."
 
 
+# --- pattern drafting ---------------------------------------------------------
+
+@mcp.tool()
+def create_pattern(points: list[list[float]]) -> str:
+    """Draft a new pattern piece from 2D outline points (units: mm).
+
+    Each point is [x, y] or [x, y, vertex_type]: 0 = straight (default),
+    2 = spline curve, 3 = bezier curve. The outline closes automatically
+    (last point connects back to the first). Returns the new pattern index —
+    use it with set_arrangement / add_seam / assign_fabric.
+    """
+    result = _run("create_pattern", {"points": points})
+    return f"Created pattern {result.get('pattern_index')} from {len(points)} points."
+
+
 def main() -> None:
     mcp.run()
 

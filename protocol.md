@@ -56,3 +56,4 @@ exceptions from CLO API calls and reports them as `ok: false`.
 | `set_arrangement_position` | `{"pattern_index": int, "x": int, "y": int, "offset": int}` | `{}` |
 | `add_seam` | `{"pattern_a": int, "line_a": int, "pattern_b": int, "line_b": int, "dir_a": bool?, "dir_b": bool?}` | `{}` |
 | `seam_count` | `{}` | `{"count": int}` |
+| `create_pattern` | `{"points": [[x, y, type?], ...]}` (mm; type 0=straight, 2=spline, 3=bezier) | `{"pattern_index": int}` |

@@ -13,6 +13,7 @@
 
 #include <map>
 #include <string>
+#include <tuple>
 #include <vector>
 #include <stdexcept>
 
@@ -43,4 +44,10 @@ struct ICloApi {
     virtual void addSeam(int patternA, int lineA, int patternB, int lineB,
                          bool directionA, bool directionB) = 0;
     virtual int  seamCount() = 0;                                     // -> seamline pair groups
+
+    // --- pattern drafting ----------------------------------------------------
+    // Each point is (x, y, vertexType) in mm; vertexType 0 = straight,
+    // 2 = spline curve, 3 = bezier curve. The outline closes automatically.
+    virtual int createPattern(
+        const std::vector<std::tuple<float, float, int>>& points) = 0;  // -> new pattern index
 };
