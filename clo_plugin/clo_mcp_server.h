@@ -30,6 +30,11 @@ public:
 
     bool start(const QString& host = QStringLiteral("127.0.0.1"), quint16 port = 5005);
     void stop();   // stop listening; existing replies still flush
+    bool isListening() const { return server_ != nullptr; }
+
+signals:
+    void logMessage(const QString& line);     // human-readable event log (UI panel)
+    void listeningChanged(bool listening);
 
 private slots:
     void onNewConnection();
