@@ -11,6 +11,7 @@
 
 #include "CLOAPIInterface.h"   // UTILITY_API (DisplayMessageBox) etc.
 #include "clo_mcp_server.h"
+#include "clo_status_panel.h"
 #include "clo_api.h"
 
 // CLO swallows plugin exceptions and qInfo/qWarning go nowhere visible, so the
@@ -38,8 +39,10 @@ BOOL APIENTRY DllMain(HMODULE h, DWORD reason, LPVOID) {
 std::shared_ptr<ICloApi> makeCloBackend();   // from clo_api_clo.cpp
 
 namespace {
-std::unique_ptr<CloMcpServer> g_server;      // persists across DoFunction() calls (DLL stays loaded)
+std::unique_ptr<CloMcpServer> g_server;      // persists because the module is pinned (see DoFunction)
+CloStatusPanel* g_panel = nullptr;           // owned by Qt's top-level widget list; lives until process exit
 constexpr quint16 kPort = 5005;
+const QString kHost = QStringLiteral("127.0.0.1");
 }
 
 extern "C" {
@@ -58,48 +61,38 @@ CLO_PLUGIN_SPECIFIER int GetPositionIndexToAddAction() {
     return 1;                                // below the anchor item
 }
 
+// Menu click: open (or raise) the status panel. The listener itself is
+// started/stopped with the panel's button; the first click also auto-starts it.
 CLO_PLUGIN_SPECIFIER void DoFunction() {
     pluginLog("DoFunction: entered");
     try {
-        if (g_server) {                      // running -> stop, hand the port back
-            g_server->stop();
-            g_server.reset();
-            pluginLog("DoFunction: server stopped");
-            if (UTILITY_API) UTILITY_API->DisplayMessageBox("MCP listener stopped.");
-            return;
-        }
 #ifdef _WIN32
         // CLO loads this DLL fresh for every export call and frees it as soon as
-        // DoFunction returns — which would destroy g_server (and the listener)
-        // with it. Pin the module so it survives; LoadLibrary on the next click
-        // returns this same pinned instance, so the start/stop toggle still works.
+        // DoFunction returns — which would destroy g_server/g_panel with it.
+        // Pin the module so they survive; LoadLibrary on the next click returns
+        // this same pinned instance.
         HMODULE self = nullptr;
-        if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-                               GET_MODULE_HANDLE_EX_FLAG_PIN,
-                               reinterpret_cast<LPCWSTR>(&DoFunction), &self))
-            pluginLog("DoFunction: module pinned (survives FreeLibrary)");
-        else
+        if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                                GET_MODULE_HANDLE_EX_FLAG_PIN,
+                                reinterpret_cast<LPCWSTR>(&DoFunction), &self))
             pluginLog("DoFunction: WARNING: failed to pin module");
 #endif
-        g_server = std::make_unique<CloMcpServer>(makeCloBackend());
-        pluginLog("DoFunction: server object created");
-        if (g_server->start(QStringLiteral("127.0.0.1"), kPort)) {
-            pluginLog("DoFunction: listening on 127.0.0.1:5005");
-            if (UTILITY_API) UTILITY_API->DisplayMessageBox(
-                "MCP listener running on 127.0.0.1:5005. CLO stays interactive — "
-                "click this menu item again to stop.");
-            else pluginLog("DoFunction: UTILITY_API is null (no message box)");
-        } else {
-            g_server.reset();
-            pluginLog("DoFunction: listen FAILED on port 5005");
-            if (UTILITY_API) UTILITY_API->DisplayMessageBox("MCP listener failed to start (is port 5005 in use?).");
+        if (!g_server) {
+            g_server = std::make_unique<CloMcpServer>(makeCloBackend());
+            g_panel = new CloStatusPanel(g_server.get(), kHost, kPort);
+            pluginLog("DoFunction: server + panel created");
+            if (g_server->start(kHost, kPort))
+                pluginLog("DoFunction: listening on 127.0.0.1:5005");
+            else
+                pluginLog("DoFunction: listen FAILED on port 5005");
         }
+        g_panel->show();
+        g_panel->raise();
+        g_panel->activateWindow();
     } catch (const std::exception& e) {
         pluginLog((std::string("DoFunction: exception: ") + e.what()).c_str());
-        g_server.reset();
     } catch (...) {
         pluginLog("DoFunction: unknown exception");
-        g_server.reset();
     }
 }
 
