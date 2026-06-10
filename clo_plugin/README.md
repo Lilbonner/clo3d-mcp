@@ -58,8 +58,20 @@ Copy **both** `build/Release/clo_mcp_plugin.dll` and the auto-copied
 Release only — CLO will not load Debug binaries. No hot-reload (replace + restart).
 
 Register/locate it via **Settings → Plug-in**: the action **"MCP Listener
-(start / stop)"** appears there. Click it to start the listener on `127.0.0.1:5005`
-(UI stays live); click again to stop.
+(start / stop)"** appears there. Clicking it opens the **status panel** (see
+below) and auto-starts the listener on `127.0.0.1:5005`; the UI stays live.
+
+## Status panel
+
+The menu action opens a small non-modal window ("CLO MCP Listener",
+`clo_status_panel.{h,cpp}`) that lives for the CLO session:
+
+- **state indicator** — green `● Running on 127.0.0.1:5005` / grey `○ Stopped`;
+- **Start / Stop button** — the listener is controlled here, so an accidental
+  double-click on the menu item can no longer toggle it off;
+- **live log** — every request with a timestamp, outcome and duration
+  (`[14:23:05] pattern_count — ok (2 ms)`), errors included; capped at 2000
+  lines. The file log (`clo_mcp_plugin.log`) keeps being written too.
 
 ## Gotcha: CLO loads the plugin DLL per call
 
