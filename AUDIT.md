@@ -91,3 +91,26 @@ fine synchronously without a Qt event loop, as expected.
 Two refinements found during this run and fixed: `render_image` now flattens the
 per-colorway nested list CLO returns, and `export_zprj` returns the saved path
 (CLO's `ExportZPrj` return value) instead of an empty object.
+
+### Live validation — CLO 7.3.240, native C++ plugin (real-time)
+
+The native plugin (`clo_plugin/`, QTcpServer on CLO's main thread) replaced the
+blocking Python listener. Driven end to end over MCP against a running CLO:
+
+| command | result |
+|---|---|
+| `ping` | listener up (panel shows `● Running on 127.0.0.1:5005`) |
+| `import_project` (.zprj) | smoke garment loaded, `pattern_count` 0 → 7 |
+| `simulate(30/60)` | cloth solver ran; UI live between commands |
+| `export_zprj` | wrote a 2.7 MB project file |
+| `render_image` | wrote real PNGs (shirt alone; later avatar dressed) |
+| `import_project` (.avt) | avatar (MV2_Luka) added to the scene |
+| `import_project` (.zpac) | library garment replaced scene garments, kept avatar |
+
+Root cause of the initial "click does nothing": CLO loads the plugin DLL
+transiently around every export call, so the freshly started listener died on
+`FreeLibrary`. Fixed by pinning the module (see `clo_plugin/README.md`).
+Useful `ImportFile` semantics discovered: `.zprj` replaces the scene, `.avt`
+adds the avatar, `.zpac` replaces garments while keeping the avatar — the
+`.zpac` route is how a garment gets dressed onto an avatar without `auto_hang`
+(not exposed in the v4.3.4 C++ API).
