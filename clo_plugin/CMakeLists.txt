@@ -20,8 +20,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 
 # Qt5 for CLO 7.3.x (find_package falls back to Qt5 when Qt6 is absent).
-find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core Network)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network)
+find_package(QT NAMES Qt5 Qt6 REQUIRED COMPONENTS Core Network Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network Widgets)
 message(STATUS "clo-mcp: building against Qt${QT_VERSION_MAJOR} ${Qt${QT_VERSION_MAJOR}_VERSION}")
 
 # --- SDK-independent core (network + protocol + dispatch) -------------------
@@ -53,9 +53,13 @@ if(CLO_SDK_DIR)
     add_library(clo_mcp_plugin SHARED
         plugin_main.cpp
         clo_api_clo.cpp
+        clo_status_panel.cpp
+        clo_status_panel.h
     )
     target_include_directories(clo_mcp_plugin PRIVATE "${CLO_IFACE}")
-    target_link_libraries(clo_mcp_plugin PRIVATE clo_mcp_core ${CLO_API_INTERFACE_LIB})
+    # Widgets: the status panel runs inside CLO's QApplication (CLO ships Qt5Widgets.dll).
+    target_link_libraries(clo_mcp_plugin PRIVATE clo_mcp_core ${CLO_API_INTERFACE_LIB}
+        Qt${QT_VERSION_MAJOR}::Widgets)
     if(MSVC)
         target_compile_definitions(clo_mcp_plugin PRIVATE UNICODE _WINDOWS _USRDLL BOMAPIDLL_EXPORTS)
     endif()
