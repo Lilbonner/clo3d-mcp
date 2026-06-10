@@ -160,8 +160,17 @@ def render_image() -> str:
 @mcp.tool()
 def export_zprj(path: str) -> str:
     """Save the current scene as a .zprj project file."""
-    result = _run("export_zprj", {"path": os.path.expanduser(path)})
-    return f"Saved project to {result.get('path', path)}."
+    path = os.path.expanduser(path)
+    # CLO's ExportZPrj reports success even when the target directory doesn't
+    # exist (no file is written) — make sure it does.
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    result = _run("export_zprj", {"path": path})
+    saved = result.get("path", path)
+    if not os.path.exists(saved):
+        raise RuntimeError(f"CLO reported success but {saved} was not written")
+    return f"Saved project to {saved}."
 
 
 @mcp.tool()

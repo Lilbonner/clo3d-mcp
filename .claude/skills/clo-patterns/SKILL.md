@@ -76,9 +76,25 @@ plausible places.
 `add_seam(pattern_a, line_a, pattern_b, line_b, dir_a, dir_b)`. Check `seam_count`
 before/after (seams group, so +N calls may add <N groups).
 
-The big unsolved problem: **stitch direction is guesswork** — `pattern_info` gives no
-vertex data, so `dir_a`/`dir_b` cannot be computed. Wrong direction = twisted seam =
-crumpled ball after simulate. Mitigations:
+**The mirror principle (зеркальный принцип) — how to pick dir_a/dir_b.**
+A seam is correct when both lines run the same *physical* direction along the
+joined edge in 3D. A line's intrinsic direction = its point order (creation
+order for create_pattern, DXF winding for imports). So:
+
+- Pieces related by **rotation** (identical front/back panels placed around the
+  body by arrangement points): winding is preserved → dirs EQUAL
+  (`true/true`). Validated by the skirt demo.
+- Pieces related by **mirror** (left/right halves, `_1`/`_2` copies from
+  DXF/Grafis, or panels you drafted with x→−x): mirroring reverses winding →
+  the same physical edge is traversed oppositely → FLIP exactly one dir
+  (`true/false`). This is what CLO's 2D UI does implicitly when you click
+  segment ends — the clicked end picks the start, mirrored clicks = mirrored
+  directions. The 2026-06-10 shirt crumple was mirrored pieces sewn
+  `true/true`.
+- General rule: count mirror operations relating the two pieces' 2D layouts;
+  odd count → flip one dir, even → keep equal.
+
+For *imported* DXF the winding per piece is still unknown a priori — mitigate:
 - sew the few high-confidence structural seams only, not everything;
 - checkpoint first (see above);
 - simulate in short bursts (30–60 frames), render, and stop early if it crumples.
