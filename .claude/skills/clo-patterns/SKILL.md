@@ -93,12 +93,35 @@ seams to hang.
 Judge: pieces draped on body = good; ball of cloth on the floor/chest = bad seams →
 restore checkpoint.
 
+## Drafting patterns from scratch (create_pattern) — the reliable path
+
+`create_pattern(points)` drafts a piece from `[x, y, type?]` points (mm, y-up,
+type 0=straight / 2=spline / 3=bezier; outline auto-closes). **This solves the
+direction problem**: you chose the point order, so line indexing is known —
+line *i* connects point *i* to point *i+1* (last closes back to point 0) — and
+`add_seam` defaults (`dir true/true`) are correct for identical front/back
+panels sewn side-to-side. Validated end-to-end 2026-06-11: A-line skirt on
+FV2_Mia drafted, arranged (`Leg_Skirt_Front`=95, `Leg_Skirt_Back`=98), sewn
+with 4 side seams, simulated 80 frames — clean drape, no twisting.
+
+Worked skirt numbers (Mia, ~170cm: waist ≈680, hips ≈930): per panel,
+clockwise from top-left: `[-180,560],[180,560],[240,360],[260,0],[-260,0],
+[-240,360]` → waist 720 total, hips 960, hem 1040, length 560 (knee).
+Sew front↔back lines 1↔1, 2↔2, 4↔4, 5↔5. See `scripts/draft_skirt.py`.
+
+Avatars: `import_project` loads `.avt`; stock avatars live in
+`C:\Users\Public\Documents\CLO\Assets\Avatar\Avatar\` (FV2_Mia, MV2_Luka, kids).
+
+NOTE: a freshly added MCP tool isn't visible until the MCP server restarts —
+call the listener directly via `CloClient` in the meantime.
+
 ## Known limitations (as of plugin v. 2026-06)
 
 - no `remove_seam` / undo;
 - `pattern_info` lacks outline vertices → directions and edge semantics unknowable;
 - no multi-segment (group) sewing;
-- no command to draft pattern geometry from scratch — лекала must come from DXF.
+- imported DXF pieces still suffer the direction problem (unknown winding) —
+  prefer drafting with create_pattern when geometry is simple.
 
 If the user asks for one of these, the honest answer is "needs a new plugin command"
 (C++ side: `clo_plugin/clo_api_clo.cpp` + listener + `clo_mcp/server.py` + protocol.md).
