@@ -1,181 +1,267 @@
 # clo3d-mcp
 
+**English** · [Русский](#русский)
+
 An MCP server that lets Claude (or any MCP host) drive **CLO3D** for AI-assisted
-garment design — import projects, assign fabrics, run cloth simulation, render,
-and export, all from a chat.
-
-Unlike the only prior attempt ([`gregor124/clo-mcp`](https://github.com/gregor124/clo-mcp),
-a single-commit C++ stub with no working MCP server), this project targets the
-**built-in CLO Python API** (CLO 6.0.374+) and ships a real, working tool surface.
-
-## Architecture
+garment design — import projects, dress avatars, assign fabrics, run cloth
+simulation, render, and export, all from a chat.
 
 ```
-Claude  ◄── stdio ──►  clo_mcp (Python MCP server)  ◄── TCP/JSON ──►  clo_addon (listener inside CLO)  ◄──►  CLO Python API
+Claude ◄─ stdio ─► clo_mcp (Python MCP server) ◄─ TCP/JSON ─► listener inside CLO ◄─► CLO API
 ```
 
 - **`clo_mcp/`** — the MCP server. Runs on the host, talks stdio to Claude,
-  forwards each tool call as one JSON command over a TCP socket. No CLO
-  dependency, fully unit-testable.
-- **`clo_addon/clo_mcp_listener.py`** — runs *inside* CLO (Main Menu → Edit →
-  Python Script → Run). Holds a **non-blocking** socket server and dispatches
-  commands to the CLO API.
+  forwards each tool call as one JSON command over a TCP socket
+  (`127.0.0.1:5005`). No CLO dependency, fully unit-testable.
+- The **listener inside CLO** comes in two flavors — pick one:
 
-### The one constraint that shapes everything
+| | **Native C++ plugin** (`clo_plugin/`) — recommended | Python script (`clo_addon/`) — fallback |
+|---|---|---|
+| CLO UI while listening | **stays fully interactive** | frozen until `clo_shutdown` (CLO 7 has no Qt in Python) |
+| Lifetime | whole CLO session, Start/Stop button | until the script is stopped |
+| Feedback | status window with live request log | Log Console prints |
+| Needs | CLO 7.3.240+, one-time DLL build | nothing (script as-is) |
 
-CLO runs Python on its **main UI thread**. A blocking `accept()` loop would
-freeze the UI. So the listener uses a Qt timer to poll the socket and drain a
-command queue on the main thread — the same pattern Blender-MCP uses with a
-modal timer. This is the part to validate first inside real CLO (see
-`clo_addon/clo_mcp_listener.py` header).
+## The custom plugin (`clo_plugin/`)
 
-## MVP tool surface
+CLO 7's embedded Python exposes **no Qt and no idle/timer hook**, so a Python
+listener can only block the UI thread while serving. The plugin solves this
+natively: a `QTcpServer` created **on CLO's main thread** gets its socket
+signals delivered by CLO's own Qt event loop — commands run on the main thread
+(the only place the CLO API is safe) *without* a blocking loop. The UI only
+stalls for the duration of a genuinely long call (simulate/render), same as
+clicking the action by hand. Same wire protocol as the Python listener — the
+MCP server doesn't know or care which one is on the other end.
 
-| Tool | CLO API call |
-|---|---|
-| `import_project(path)` | `import_api.ImportFile` |
-| `import_avatar(path)` | `import_api.ImportAvatar` |
-| `auto_hang(garment, hanger, bottom)` | `utility_api.AutoHang` |
-| `simulate(frames)` | `utility_api.Simulate` |
-| `add_fabric(zfab_path)` | `fabric_api.AddFabric` |
-| `assign_fabric(fabric_idx, pattern_idx)` | `fabric_api.AssignFabricToPattern` |
-| `set_fabric_color(...)` | `fabric_api.SetFabricPBRMaterialBaseColor` |
-| `render_image()` | `export_api.ExportRenderingImage` |
-| `export_zprj(path)` | `export_api.ExportZPrj` |
-| `copy_colorway / set_colorway` | `utility_api.CopyColorway / SetCurrentColorwayIndex / SetColorwayName` |
+Two hard-won implementation notes (details in `clo_plugin/README.md`):
 
-## Run (dev)
+- **CLO loads plugin DLLs transiently** — `LoadLibrary` before *every* export
+  call, `FreeLibrary` right after. Static state would die instantly, so the
+  plugin pins its module (`GetModuleHandleExW(..._PIN)`) when the listener
+  starts; the server then survives across calls and clicks.
+- **CLO swallows plugin exceptions and `qWarning`**, so the plugin appends a
+  diagnostic trail to `C:/Users/Public/Documents/CLO/clo_mcp_plugin.log`.
 
-1. In CLO: Edit → Python Script → Run `clo_addon/clo_mcp_listener.py`.
-   It prints the port it's listening on (default `5005`).
-2. Register the MCP server with your host, e.g. Claude Code:
-   ```
-   claude mcp add clo3d -- python -m clo_mcp.server
-   ```
-3. Ask: "import C:/work/dress.zprj and simulate 80 frames".
+Clicking the plugin's menu item opens a small **status window**:
+green `● Running on 127.0.0.1:5005` / grey `○ Stopped`, a Start/Stop button,
+and a live log — every request with outcome and timing, e.g.
+`[14:23:05] simulate — ok (1840 ms)`.
 
-## Status
+### Build the plugin
 
-Scaffold. The MCP server side is complete; the CLO listener's threading model
-and the exact API-handle import names need validation inside CLO (marked
-`# VERIFY` in the listener). Packaging as a one-file `.mcpb` is a later step.
+Prereqs: Visual Studio 2022 (MSVC C++), CMake ≥ 3.20, **Qt 5.15.x msvc2019_64**
+(CLO 7.3.240 ships Qt 5.15.2 — exact match), and the CLO SDK
+(`CLO_SDK_v7.3.240_WIN.zip` from developer.clo3d.com → API/SDK Download).
 
----
+```powershell
+cd clo_plugin
+cmake -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 `
+      -DCLO_SDK_DIR=C:/path/to/CLO_SDK_v7.3.240 `
+      -DCMAKE_PREFIX_PATH=C:/Qt/5.15.2/msvc2019_64
+cmake --build build-msvc --config Release      # Release only - CLO won't load Debug
+```
 
-## Инструкция (RU)
+### Install & use
 
-MCP-сервер, который позволяет Claude управлять **CLO3D**: импорт проектов,
-назначение тканей, симуляция, рендер и экспорт — прямо из чата.
+1. Copy `build-msvc/Release/clo_mcp_plugin.dll` to
+   `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\` and restart CLO.
+2. **Settings → Plug-in → "MCP Listener (start / stop)"** — the status window
+   opens and the listener auto-starts on `127.0.0.1:5005`.
+3. That's it — CLO stays interactive while Claude works.
 
-### Требования
+Without the SDK you can still build and run `clo_mcp_test.exe` (a stub backend
+speaking the full protocol) to verify the host ↔ server plumbing.
 
-- **CLO3D 6.0.374+** с поддержкой Python (Main Menu → Edit → Python Script).
-- **Python 3.10+** на той же машине, где запущен CLO.
-- MCP-хост: Claude Code (CLI) или Claude Desktop.
+## Python listener (fallback, blocking on CLO 7)
 
-### Установка
+1. In CLO: Main Menu → **Edit → Python Script → Run Python Script** →
+   `clo_addon/clo_mcp_listener.py`.
+2. On CLO 7 it prints `blocking main-thread mode` — the CLO UI is busy while
+   serving; ask Claude to call `clo_shutdown` to hand the UI back.
+
+## Hook up the MCP server (host side)
 
 ```bash
 git clone https://github.com/Lilbonner/clo3d-mcp.git
-cd clo3d-mcp
-pip install -e .
+cd clo3d-mcp && pip install -e .
 ```
 
-### Шаг 1. Запустить листенер внутри CLO
+**Claude Code:** `claude mcp add clo3d -- python -m clo_mcp.server`
 
-1. Открой CLO3D.
-2. Main Menu → **Edit → Python Script → Run Python Script**.
-3. Выбери файл `clo_addon/clo_mcp_listener.py`.
-4. В Log Console появится одно из двух:
-
-   **CLO 7 (Python без Qt) — блокирующий режим (типичный случай):**
-   ```
-   [clo-mcp] no Qt binding found — blocking main-thread mode.
-   [clo-mcp] listening on 127.0.0.1:5005 (blocking main-thread mode)
-   ```
-   Команды CLO API выполняются на главном потоке (безопасно), но **UI CLO
-   «занят», пока листенер работает** — это нормально. Чтобы вернуть управление
-   CLO, попроси Claude вызвать `clo_shutdown` (или закрой CLO).
-
-   **Сборка с Qt — отзывчивый режим:**
-   ```
-   [clo-mcp] main-thread pump via PySide6.QtCore.QTimer
-   [clo-mcp] ready (responsive mode)
-   ```
-   Здесь UI остаётся отзывчивым, листенер крутится в фоне.
-
-> Повторный запуск скрипта безопасен — старый экземпляр останавливается сам.
-> Проверить окружение перед запуском можно скриптом `clo_addon/diagnose.py`
-> (тем же Run Python Script): он печатает версию Python, доступные API-модули и Qt.
-
-### Шаг 2. Подключить MCP-сервер к хосту
-
-**Claude Code (CLI):**
-```bash
-claude mcp add clo3d -- python -m clo_mcp.server
-```
-
-**Claude Desktop** — добавь в `claude_desktop_config.json`:
+**Claude Desktop** (`claude_desktop_config.json`):
 ```json
-{
-  "mcpServers": {
-    "clo3d": {
-      "command": "python",
-      "args": ["-m", "clo_mcp.server"]
-    }
-  }
-}
+{ "mcpServers": { "clo3d": { "command": "python", "args": ["-m", "clo_mcp.server"] } } }
 ```
-После этого перезапусти Claude Desktop.
 
-### Шаг 3. Проверить связь
+Then ask: *"call clo_ping"* → `CLO listener is up.` means the whole chain works.
+From there, plain language: *"import C:/work/dress.zprj and simulate 80 frames"*.
 
-Спроси у Claude: **«вызови clo_ping»**. Ответ `CLO listener is up.` означает,
-что хост ↔ сервер ↔ CLO связаны. Дальше можно командовать обычным языком:
+## Tools
 
-> «импортируй C:/work/dress.zprj и просимулируй 80 кадров»
-> «назначь ткань из C:/fabrics/denim.zfab на паттерн 0 и отрендери картинку»
+| Tool | What it does |
+|---|---|
+| `clo_ping` | check the listener is reachable |
+| `import_project(path)` | open `.zprj` (replaces scene) / `.avt` (adds avatar) / `.zpac` (replaces garments, keeps avatar) |
+| `pattern_count()` | number of pattern pieces in the scene |
+| `simulate(frames)` | run the cloth solver |
+| `add_fabric` / `assign_fabric` / `set_fabric_color` | fabric workflow |
+| `copy_colorway` / `set_colorway` | colorway workflow |
+| `render_image()` | render, returns saved PNG path(s) |
+| `export_zprj(path)` | save the scene as `.zprj` |
+| `clo_shutdown` | stop the listener (frees the UI in Python blocking mode) |
 
-Когда закончишь — попроси «**вызови clo_shutdown**», чтобы остановить листенер и
-вернуть управление окну CLO (актуально для блокирующего режима CLO 7).
+Tip: to dress an avatar, import the `.avt` first, then a `.zpac` garment saved
+with arrangement points (e.g. CLO's library `Male_T-shirt.zpac`), then
+`simulate` — `auto_hang` is not exposed in the SDK v4.3.4 C++ API.
 
-### Настройка порта (если 5005 занят)
+## Configuration
 
-Порт и хост читаются из переменных окружения **на обеих сторонах** — задай
-одинаковые значения там, где запускаешь и CLO, и MCP-сервер:
+Set the same values on both sides (host env and CLO side):
+`CLO_MCP_HOST` (default `127.0.0.1`), `CLO_MCP_PORT` (`5005`),
+`CLO_MCP_TIMEOUT` (`600` s — simulate/render can be long).
 
-| Переменная | По умолчанию | Назначение |
+## Status
+
+Validated end to end on CLO 7.3.240 with the native plugin: ping → import →
+pattern_count → simulate → export (real `.zprj` on disk) → render (real PNG),
+including adding an avatar and dressing it. See `AUDIT.md` for the validation
+log and `clo_plugin/README.md` for plugin internals.
+
+---
+
+# Русский
+
+MCP-сервер, который позволяет Claude (или любому MCP-хосту) управлять **CLO3D**:
+импорт проектов, одевание аватаров, ткани, симуляция, рендер и экспорт — прямо
+из чата.
+
+```
+Claude ◄─ stdio ─► clo_mcp (MCP-сервер, Python) ◄─ TCP/JSON ─► листенер внутри CLO ◄─► CLO API
+```
+
+- **`clo_mcp/`** — MCP-сервер. Работает на хосте, говорит с Claude по stdio,
+  каждую команду шлёт одной JSON-строкой в TCP-сокет (`127.0.0.1:5005`).
+- **Листенер внутри CLO** есть в двух вариантах — выбери один:
+
+| | **Нативный C++ плагин** (`clo_plugin/`) — рекомендуется | Python-скрипт (`clo_addon/`) — запасной |
 |---|---|---|
-| `CLO_MCP_HOST` | `127.0.0.1` | адрес листенера |
-| `CLO_MCP_PORT` | `5005` | порт |
-| `CLO_MCP_TIMEOUT` | `600` | таймаут ответа, сек (симуляция/рендер бывают долгими) |
+| UI CLO во время работы | **полностью отзывчивый** | заморожен до `clo_shutdown` (в Python CLO 7 нет Qt) |
+| Время жизни | вся сессия CLO, кнопка Start/Stop | пока работает скрипт |
+| Обратная связь | окно статуса с живым логом запросов | печать в Log Console |
+| Что нужно | CLO 7.3.240+, разовая сборка DLL | ничего |
 
-### Тесты
+## Кастомный плагин (`clo_plugin/`)
+
+Встроенный Python в CLO 7 **не имеет ни Qt, ни таймера/idle-хука**, поэтому
+Python-листенер может слушать сокет только блокируя UI. Плагин решает это
+нативно: `QTcpServer`, созданный **на главном потоке CLO**, получает сигналы
+сокета через собственный Qt event loop CLO — команды выполняются на главном
+потоке (единственное безопасное место для CLO API) **без** блокирующего цикла.
+UI замирает только на время действительно долгой операции (симуляция/рендер) —
+ровно как при ручном клике. Протокол тот же, что у Python-листенера: MCP-сервер
+не знает и не должен знать, кто на другом конце.
+
+Два выстраданных нюанса реализации (подробности в `clo_plugin/README.md`):
+
+- **CLO грузит DLL плагина на каждый вызов**: `LoadLibrary` перед *каждым*
+  экспортом и `FreeLibrary` сразу после. Статическое состояние умирало бы
+  мгновенно, поэтому при старте листенера плагин пинит свой модуль
+  (`GetModuleHandleExW(..._PIN)`) — сервер переживает выгрузки и клики.
+- **CLO молча глотает исключения плагина и `qWarning`** — поэтому плагин ведёт
+  диагностический лог в `C:/Users/Public/Documents/CLO/clo_mcp_plugin.log`.
+
+Клик по пункту меню плагина открывает **окно статуса**: зелёный
+`● Running on 127.0.0.1:5005` / серый `○ Stopped`, кнопка Start/Stop и живой
+лог — каждый запрос с результатом и таймингом, например
+`[14:23:05] simulate — ok (1840 ms)`.
+
+### Сборка плагина
+
+Нужно: Visual Studio 2022 (MSVC C++), CMake ≥ 3.20, **Qt 5.15.x msvc2019_64**
+(CLO 7.3.240 несёт Qt 5.15.2 — точное совпадение) и CLO SDK
+(`CLO_SDK_v7.3.240_WIN.zip` с developer.clo3d.com → API/SDK Download).
+
+```powershell
+cd clo_plugin
+cmake -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 `
+      -DCLO_SDK_DIR=C:/путь/к/CLO_SDK_v7.3.240 `
+      -DCMAKE_PREFIX_PATH=C:/Qt/5.15.2/msvc2019_64
+cmake --build build-msvc --config Release   # только Release - Debug CLO не загрузит
+```
+
+### Установка и использование
+
+1. Скопируй `build-msvc/Release/clo_mcp_plugin.dll` в
+   `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\` и перезапусти CLO.
+2. **Settings → Plug-in → «MCP Listener (start / stop)»** — откроется окно
+   статуса, листенер сам стартует на `127.0.0.1:5005`.
+3. Всё — CLO остаётся отзывчивым, пока Claude работает.
+
+Без SDK можно собрать и запустить `clo_mcp_test.exe` — заглушку с полным
+протоколом, чтобы проверить связку хост ↔ сервер заранее.
+
+## Python-листенер (запасной, блокирующий на CLO 7)
+
+1. В CLO: Main Menu → **Edit → Python Script → Run Python Script** →
+   `clo_addon/clo_mcp_listener.py`.
+2. На CLO 7 он напишет `blocking main-thread mode` — UI CLO занят, пока идёт
+   работа; чтобы вернуть управление, попроси Claude вызвать `clo_shutdown`.
+
+## Подключение MCP-сервера (на хосте)
 
 ```bash
-# через pytest
-pip install pytest && pytest -q
-# или без него
-PYTHONPATH=. python tests/test_clo_client.py   # ожидается: ok
+git clone https://github.com/Lilbonner/clo3d-mcp.git
+cd clo3d-mcp && pip install -e .
 ```
 
-### Что проверить при первом запуске в CLO (`# VERIFY`)
+**Claude Code:** `claude mcp add clo3d -- python -m clo_mcp.server`
 
-1. **Имена API-объектов.** Если `clo_ping` работает, а реальные команды падают с
-   ошибкой про «CLO API handles not found» — поправь функцию `_apis()` в
-   `clo_addon/clo_mcp_listener.py` под свою сборку CLO (как именно она отдаёт
-   `import_api` / `export_api` / `fabric_api` / `pattern_api` / `utility_api`).
-2. **Qt-биндинг.** Код перебирает `PySide6 → PySide2 → PyQt5`. Если ни один не
-   нашёлся (`WARNING` в логе) — узнай, какой Qt есть в Python твоей CLO.
-3. **Живучесть листенера.** Запусти, подожди минуту, снова вызови `clo_ping`.
-   Если отвечает — листенер пережил завершение скрипта (см. `AUDIT.md`, H1).
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{ "mcpServers": { "clo3d": { "command": "python", "args": ["-m", "clo_mcp.server"] } } }
+```
 
-### Траблшутинг
+Проверка: скажи Claude **«вызови clo_ping»** → `CLO listener is up.` значит вся
+цепочка работает. Дальше обычным языком: *«импортируй C:/work/dress.zprj и
+просимулируй 80 кадров»*.
+
+## Инструменты
+
+| Инструмент | Что делает |
+|---|---|
+| `clo_ping` | проверить, что листенер доступен |
+| `import_project(path)` | открыть `.zprj` (заменяет сцену) / `.avt` (добавляет аватара) / `.zpac` (заменяет одежду, аватар остаётся) |
+| `pattern_count()` | число лекал в сцене |
+| `simulate(frames)` | прогнать симуляцию ткани |
+| `add_fabric` / `assign_fabric` / `set_fabric_color` | работа с тканями |
+| `copy_colorway` / `set_colorway` | работа с colorway |
+| `render_image()` | рендер, возвращает пути PNG |
+| `export_zprj(path)` | сохранить сцену в `.zprj` |
+| `clo_shutdown` | остановить листенер (в блокирующем режиме вернёт UI) |
+
+Совет: чтобы одеть аватара — сначала импортируй `.avt`, затем `.zpac`-гармент
+с точками расстановки (например, библиотечный `Male_T-shirt.zpac` из ассетов
+CLO), затем `simulate`. (`auto_hang` в C++ API SDK v4.3.4 не экспонирован.)
+
+## Настройка
+
+Одинаковые значения с обеих сторон (env хоста и CLO):
+`CLO_MCP_HOST` (по умолчанию `127.0.0.1`), `CLO_MCP_PORT` (`5005`),
+`CLO_MCP_TIMEOUT` (`600` сек — симуляция и рендер бывают долгими).
+
+## Траблшутинг
 
 | Симптом | Причина / решение |
 |---|---|
-| `Cannot reach CLO listener` | CLO не открыт, или листенер не запущен, или порт не совпадает (см. env-переменные). |
-| `no Qt binding found` в логе | Норма для CLO 7: листенер ушёл в блокирующий главнопоточный режим. UI CLO «занят» до `clo_shutdown`. |
-| UI CLO не реагирует | Ожидаемо в блокирующем режиме — листенер держит главный поток. Вызови `clo_shutdown`. |
-| `CLO API modules not importable` | Скрипт запущен не внутри CLO. Запускай через Edit → Python Script → Run. |
+| `Cannot reach CLO listener` | CLO не открыт, листенер не запущен (окно статуса: `○ Stopped`?) или порт не совпадает. |
+| Пункта меню плагина нет | DLL не в `…\Assets\Preferences\API_Plug_in\`, либо собрана Debug, либо CLO < 7.3. |
+| Клик по меню «ничего не делает» | Смотри `clo_mcp_plugin.log` — он показывает каждый вызов CLO в плагин. |
+| UI CLO не реагирует | Python-режим: ожидаемо, вызови `clo_shutdown`. Плагин: идёт долгая команда (simulate/render). |
 | Команда зависает | Долгая симуляция/рендер — увеличь `CLO_MCP_TIMEOUT`. |
+
+## Статус
+
+Проверено end-to-end на CLO 7.3.240 с нативным плагином: ping → импорт →
+pattern_count → simulate → экспорт (реальный `.zprj` на диске) → рендер
+(реальный PNG), включая добавление аватара и его одевание. Лог валидации — в
+`AUDIT.md`, внутренности плагина — в `clo_plugin/README.md`.
