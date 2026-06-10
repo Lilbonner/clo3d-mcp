@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
+#include <QElapsedTimer>
 #include <QtGlobal>
 
 #include <stdexcept>
@@ -21,14 +22,18 @@ bool CloMcpServer::start(const QString& host, quint16 port) {
     server_ = new QTcpServer(this);
     connect(server_, &QTcpServer::newConnection, this, &CloMcpServer::onNewConnection);
     if (!server_->listen(QHostAddress(host), port)) {
+        const QString err = server_->errorString();
         qWarning("[clo-mcp] listen failed on %s:%u: %s",
-                 qUtf8Printable(host), port, qUtf8Printable(server_->errorString()));
+                 qUtf8Printable(host), port, qUtf8Printable(err));
         delete server_;
         server_ = nullptr;
+        emit logMessage(QStringLiteral("listen FAILED on %1:%2 — %3").arg(host).arg(port).arg(err));
         return false;
     }
     qInfo("[clo-mcp] listening on %s:%u (Qt main-thread, responsive)",
           qUtf8Printable(host), port);
+    emit logMessage(QStringLiteral("listening on %1:%2").arg(host).arg(port));
+    emit listeningChanged(true);
     return true;
 }
 
@@ -38,6 +43,8 @@ void CloMcpServer::stop() {
         server_->deleteLater();
         server_ = nullptr;
         qInfo("[clo-mcp] stopped listening");
+        emit logMessage(QStringLiteral("stopped listening"));
+        emit listeningChanged(false);
     }
 }
 
@@ -83,6 +90,7 @@ QByteArray CloMcpServer::handleLine(const QByteArray& line) {
     QJsonParseError perr{};
     const QJsonDocument doc = QJsonDocument::fromJson(line, &perr);
     if (perr.error != QJsonParseError::NoError || !doc.isObject()) {
+        emit logMessage(QStringLiteral("request rejected: bad JSON"));
         return QByteArray(R"({"ok":false,"error":"bad JSON"})");
     }
     const QJsonObject req = doc.object();
@@ -90,16 +98,22 @@ QByteArray CloMcpServer::handleLine(const QByteArray& line) {
     const QString command = req.value("command").toString();
     const QJsonObject params = req.value("params").toObject();
 
+    QElapsedTimer timer;
+    timer.start();
     QJsonObject reply;
     reply.insert("id", id);
     try {
         reply.insert("ok", true);
         reply.insert("result", dispatch(command, params));
+        emit logMessage(QStringLiteral("%1 — ok (%2 ms)").arg(command).arg(timer.elapsed()));
     } catch (const std::exception& ex) {
         reply = QJsonObject{};
         reply.insert("id", id);
         reply.insert("ok", false);
         reply.insert("error", QString::fromUtf8(ex.what()));
+        emit logMessage(QStringLiteral("%1 — ERROR: %2 (%3 ms)")
+                            .arg(command, QString::fromUtf8(ex.what()))
+                            .arg(timer.elapsed()));
     }
     return QJsonDocument(reply).toJson(QJsonDocument::Compact);
 }
