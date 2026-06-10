@@ -53,6 +53,34 @@ public:
         qInfo("[stub] pattern_count");
         return 0;
     }
+    std::string patternInfo(int patternIndex) override {
+        qInfo("[stub] pattern_info %d", patternIndex);
+        return R"({"name":"stub_pattern","outline":{"lineCount":4}})";
+    }
+    double lineLength(int patternIndex, int lineIndex) override {
+        qInfo("[stub] line_length pattern=%d line=%d", patternIndex, lineIndex);
+        return 100.0;
+    }
+    std::vector<std::map<std::string, std::string>> arrangementList() override {
+        qInfo("[stub] arrangement_list");
+        return {{{"Arrangement Name", "Front"}, {"Type", "Body"}}};
+    }
+    void setArrangement(int patternIndex, int arrangementIndex) override {
+        qInfo("[stub] set_arrangement pattern=%d arrangement=%d", patternIndex, arrangementIndex);
+    }
+    void setArrangementPosition(int patternIndex, int x, int y, int offset) override {
+        qInfo("[stub] set_arrangement_position pattern=%d x=%d y=%d offset=%d",
+              patternIndex, x, y, offset);
+    }
+    void addSeam(int patternA, int lineA, int patternB, int lineB,
+                 bool directionA, bool directionB) override {
+        qInfo("[stub] add_seam %d:%d <-> %d:%d dirA=%d dirB=%d",
+              patternA, lineA, patternB, lineB, directionA, directionB);
+    }
+    int seamCount() override {
+        qInfo("[stub] seam_count");
+        return 0;
+    }
 };
 
 }  // namespace

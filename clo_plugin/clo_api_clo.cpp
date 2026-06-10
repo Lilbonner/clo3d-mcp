@@ -86,6 +86,40 @@ public:
     int patternCount() override {
         return PATTERN_API->GetPatternCount();
     }
+
+    std::string patternInfo(int patternIndex) override {
+        const std::string info = PATTERN_API->GetPatternInformation(patternIndex);
+        if (info.empty())
+            throw std::runtime_error("GetPatternInformation returned empty (bad pattern index?)");
+        return info;
+    }
+
+    double lineLength(int patternIndex, int lineIndex) override {
+        return static_cast<double>(PATTERN_API->GetLineLength(patternIndex, lineIndex));
+    }
+
+    std::vector<std::map<std::string, std::string>> arrangementList() override {
+        return PATTERN_API->GetArrangementList();
+    }
+
+    void setArrangement(int patternIndex, int arrangementIndex) override {
+        PATTERN_API->SetArrangement(patternIndex, arrangementIndex);
+    }
+
+    void setArrangementPosition(int patternIndex, int x, int y, int offset) override {
+        PATTERN_API->SetArrangementPosition(patternIndex, x, y, offset);
+    }
+
+    void addSeam(int patternA, int lineA, int patternB, int lineB,
+                 bool directionA, bool directionB) override {
+        if (!PATTERN_API->AddSeamlinePairGroup(patternA, lineA, patternB, lineB,
+                                               directionA, directionB))
+            throw std::runtime_error("AddSeamlinePairGroup failed (bad pattern/line index?)");
+    }
+
+    int seamCount() override {
+        return PATTERN_API->GetSeamlinePairGroupCount();
+    }
 };
 
 }  // namespace

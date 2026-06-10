@@ -130,6 +130,39 @@ def _handle(command, params):
     if command == "pattern_count":
         return {"count": pattern_api.GetPatternCount()}
 
+    if command == "pattern_info":
+        info = pattern_api.GetPatternInformation(params["pattern_index"])
+        if not info:
+            raise RuntimeError("GetPatternInformation returned empty (bad pattern index?)")
+        return {"info": info}
+
+    if command == "line_length":
+        return {"length": pattern_api.GetLineLength(params["pattern_index"],
+                                                    params["line_index"])}
+
+    if command == "arrangement_list":
+        return {"arrangements": pattern_api.GetArrangementList()}
+
+    if command == "set_arrangement":
+        pattern_api.SetArrangement(params["pattern_index"], params["arrangement_index"])
+        return {}
+
+    if command == "set_arrangement_position":
+        pattern_api.SetArrangementPosition(params["pattern_index"], params["x"],
+                                           params["y"], params["offset"])
+        return {}
+
+    if command == "add_seam":
+        if not pattern_api.AddSeamlinePairGroup(
+                params["pattern_a"], params["line_a"],
+                params["pattern_b"], params["line_b"],
+                params.get("dir_a", True), params.get("dir_b", True)):
+            raise RuntimeError("AddSeamlinePairGroup failed (bad pattern/line index?)")
+        return {}
+
+    if command == "seam_count":
+        return {"count": pattern_api.GetSeamlinePairGroupCount()}
+
     raise ValueError(f"unknown command: {command}")
 
 

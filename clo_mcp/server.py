@@ -171,6 +171,83 @@ def pattern_count() -> str:
     return f"{result.get('count')} pattern pieces."
 
 
+# --- pattern introspection / arrangement / sewing ----------------------------
+
+@mcp.tool()
+def pattern_info(pattern_index: int) -> str:
+    """Get a pattern piece's information as JSON (outline lines, etc.).
+
+    Use this to discover line indices before sewing with add_seam.
+    """
+    result = _run("pattern_info", {"pattern_index": pattern_index})
+    return result.get("info", "")
+
+
+@mcp.tool()
+def line_length(pattern_index: int, line_index: int) -> str:
+    """Length of one outline line of a pattern piece (to match seam lengths)."""
+    result = _run("line_length", {"pattern_index": pattern_index, "line_index": line_index})
+    return f"Line {line_index} of pattern {pattern_index} is {result.get('length')} long."
+
+
+@mcp.tool()
+def arrangement_list() -> str:
+    """List the avatar's arrangement points (name, type, offset, orientation).
+
+    Use an entry's index with set_arrangement to place a pattern on the body.
+    """
+    result = _run("arrangement_list")
+    arrangements = result.get("arrangements", [])
+    if not arrangements:
+        return "No arrangement points (is an avatar loaded?)."
+    lines = [f"[{i}] " + ", ".join(f"{k}={v}" for k, v in sorted(entry.items()))
+             for i, entry in enumerate(arrangements)]
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def set_arrangement(pattern_index: int, arrangement_index: int) -> str:
+    """Place a pattern piece on an avatar arrangement point (see arrangement_list)."""
+    _run("set_arrangement",
+         {"pattern_index": pattern_index, "arrangement_index": arrangement_index})
+    return f"Pattern {pattern_index} arranged at point {arrangement_index}."
+
+
+@mcp.tool()
+def set_arrangement_position(pattern_index: int, x: int, y: int, offset: int) -> str:
+    """Fine-tune a pattern's arrangement position (x, y, offset from body)."""
+    _run("set_arrangement_position",
+         {"pattern_index": pattern_index, "x": x, "y": y, "offset": offset})
+    return f"Pattern {pattern_index} position set to ({x}, {y}) offset {offset}."
+
+
+@mcp.tool()
+def add_seam(
+    pattern_a: int,
+    line_a: int,
+    pattern_b: int,
+    line_b: int,
+    dir_a: bool = True,
+    dir_b: bool = True,
+) -> str:
+    """Sew outline line_a of pattern_a to outline line_b of pattern_b.
+
+    dir_a/dir_b set each line's stitching direction (True = forward); flip one
+    when the seam comes out twisted. Line indices come from pattern_info.
+    """
+    _run("add_seam", {"pattern_a": pattern_a, "line_a": line_a,
+                      "pattern_b": pattern_b, "line_b": line_b,
+                      "dir_a": dir_a, "dir_b": dir_b})
+    return f"Sewed pattern {pattern_a} line {line_a} to pattern {pattern_b} line {line_b}."
+
+
+@mcp.tool()
+def seam_count() -> str:
+    """Number of seamline pair groups (sewings) in the scene."""
+    result = _run("seam_count")
+    return f"{result.get('count')} seamline pair groups."
+
+
 def main() -> None:
     mcp.run()
 

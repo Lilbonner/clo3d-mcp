@@ -49,3 +49,10 @@ exceptions from CLO API calls and reports them as `ok: false`.
 | `copy_colorway` | `{"index": int}` | `{"new_index": int}` |
 | `set_colorway` | `{"index": int, "name": str?}` | `{}` |
 | `pattern_count` | `{}` | `{"count": int}` |
+| `pattern_info` | `{"pattern_index": int}` | `{"info": str}` (JSON string from CLO) |
+| `line_length` | `{"pattern_index": int, "line_index": int}` | `{"length": float}` |
+| `arrangement_list` | `{}` | `{"arrangements": [{str: str}]}` |
+| `set_arrangement` | `{"pattern_index": int, "arrangement_index": int}` | `{}` |
+| `set_arrangement_position` | `{"pattern_index": int, "x": int, "y": int, "offset": int}` | `{}` |
+| `add_seam` | `{"pattern_a": int, "line_a": int, "pattern_b": int, "line_b": int, "dir_a": bool?, "dir_b": bool?}` | `{}` |
+| `seam_count` | `{}` | `{"count": int}` |

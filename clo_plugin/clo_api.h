@@ -11,6 +11,7 @@
 // JSON {"ok":false,"error":<message>} reply, matching the Python listener.
 #pragma once
 
+#include <map>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -32,4 +33,14 @@ struct ICloApi {
     virtual std::vector<std::string> renderImage() = 0;               // -> paths
     virtual std::string exportZprj(const std::string& path) = 0;      // -> saved path
     virtual int  patternCount() = 0;                                  // -> count
+
+    // --- pattern introspection / arrangement / sewing (DXF workflow) --------
+    virtual std::string patternInfo(int patternIndex) = 0;            // -> JSON string
+    virtual double lineLength(int patternIndex, int lineIndex) = 0;   // -> length
+    virtual std::vector<std::map<std::string, std::string>> arrangementList() = 0;
+    virtual void setArrangement(int patternIndex, int arrangementIndex) = 0;
+    virtual void setArrangementPosition(int patternIndex, int x, int y, int offset) = 0;
+    virtual void addSeam(int patternA, int lineA, int patternB, int lineB,
+                         bool directionA, bool directionB) = 0;
+    virtual int  seamCount() = 0;                                     // -> seamline pair groups
 };

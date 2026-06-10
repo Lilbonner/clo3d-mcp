@@ -64,7 +64,37 @@ def test_call_raises_clo_error_on_failure():
         raise AssertionError("expected CloError")
 
 
+def test_add_seam_params_cross_the_wire():
+    """The sewing command's params must arrive at the listener verbatim."""
+    srv, port = _bound_server()
+    seen = {}
+
+    def serve():
+        conn, _ = srv.accept()
+        with conn:
+            data = b""
+            while b"\n" not in data:
+                chunk = conn.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+            request = json.loads(data.split(b"\n", 1)[0])
+            seen.update(request)
+            reply = {"ok": True, "result": {}, "id": request["id"]}
+            conn.sendall((json.dumps(reply) + "\n").encode("utf-8"))
+        srv.close()
+
+    threading.Thread(target=serve, daemon=True).start()
+
+    params = {"pattern_a": 0, "line_a": 2, "pattern_b": 1, "line_b": 2,
+              "dir_a": True, "dir_b": False}
+    CloClient(port=port, timeout=5.0).call("add_seam", params)
+    assert seen["command"] == "add_seam"
+    assert seen["params"] == params
+
+
 if __name__ == "__main__":  # allow `python tests/test_clo_client.py` without pytest
     test_call_returns_result()
     test_call_raises_clo_error_on_failure()
+    test_add_seam_params_cross_the_wire()
     print("ok")

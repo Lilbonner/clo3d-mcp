@@ -150,5 +150,39 @@ QJsonObject CloMcpServer::dispatch(const QString& command, const QJsonObject& pa
     if (command == "export_zprj")    return QJsonObject{{"path", QString::fromStdString(api_->exportZprj(str("path")))}};
     if (command == "pattern_count")  return QJsonObject{{"count", api_->patternCount()}};
 
+    if (command == "pattern_info")
+        return QJsonObject{{"info", QString::fromStdString(api_->patternInfo(params.value("pattern_index").toInt()))}};
+    if (command == "line_length")
+        return QJsonObject{{"length", api_->lineLength(params.value("pattern_index").toInt(),
+                                                       params.value("line_index").toInt())}};
+    if (command == "arrangement_list") {
+        QJsonArray arrangements;
+        for (const auto& entry : api_->arrangementList()) {
+            QJsonObject obj;
+            for (const auto& kv : entry)
+                obj.insert(QString::fromStdString(kv.first), QString::fromStdString(kv.second));
+            arrangements.append(obj);
+        }
+        return QJsonObject{{"arrangements", arrangements}};
+    }
+    if (command == "set_arrangement") {
+        api_->setArrangement(params.value("pattern_index").toInt(),
+                             params.value("arrangement_index").toInt());
+        return {};
+    }
+    if (command == "set_arrangement_position") {
+        api_->setArrangementPosition(params.value("pattern_index").toInt(),
+                                     params.value("x").toInt(), params.value("y").toInt(),
+                                     params.value("offset").toInt());
+        return {};
+    }
+    if (command == "add_seam") {
+        api_->addSeam(params.value("pattern_a").toInt(), params.value("line_a").toInt(),
+                      params.value("pattern_b").toInt(), params.value("line_b").toInt(),
+                      params.value("dir_a").toBool(true), params.value("dir_b").toBool(true));
+        return {};
+    }
+    if (command == "seam_count")     return QJsonObject{{"count", api_->seamCount()}};
+
     throw std::runtime_error("unknown command: " + command.toStdString());
 }
