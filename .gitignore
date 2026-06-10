@@ -31,3 +31,7 @@ Thumbs.db
 *.zprj
 *.zpac
 *.zfab
+
+# CLO crash markers and exported scene artifacts
+crash.checkpoint
+out/
