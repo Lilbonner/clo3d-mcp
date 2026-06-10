@@ -47,7 +47,7 @@ green `● Running on 127.0.0.1:5005` / grey `○ Stopped`, a Start/Stop button,
 and a live log — every request with outcome and timing, e.g.
 `[14:23:05] simulate — ok (1840 ms)`.
 
-### Build the plugin
+### Build & install the plugin (scripts)
 
 Prereqs: Visual Studio 2022 (MSVC C++), CMake ≥ 3.20, **Qt 5.15.x msvc2019_64**
 (CLO 7.3.240 ships Qt 5.15.2 — exact match), and the CLO SDK
@@ -55,22 +55,40 @@ Prereqs: Visual Studio 2022 (MSVC C++), CMake ≥ 3.20, **Qt 5.15.x msvc2019_64*
 
 ```powershell
 cd clo_plugin
+.\build.ps1 -SdkDir C:\path\to\CLO_SDK_v7.3.240   # add -QtDir C:\Qt\5.15.2\msvc2019_64 if Qt is elsewhere
+.\install.ps1                                      # copies the DLL into CLO's API_Plug_in folder
+```
+
+- `build.ps1` configures CMake (VS 2022, x64, Release) and builds the DLL.
+  `-StubOnly` builds `clo_mcp_test.exe` instead — a stub backend speaking the
+  full protocol, no SDK needed, to verify the host ↔ server plumbing.
+- `install.ps1` copies the DLL to
+  `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\`. CLO reloads
+  the DLL on every menu click, so no restart is needed — unless the listener
+  is currently running (the DLL is pinned); then close CLO and re-run, or use
+  `.\install.ps1 -WaitForClose` to auto-copy the moment CLO exits.
+- `uninstall.ps1` removes the DLL (close CLO first).
+
+If script execution is blocked: `powershell -ExecutionPolicy Bypass -File .\build.ps1 …`
+
+<details><summary>Manual equivalent</summary>
+
+```powershell
+cd clo_plugin
 cmake -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 `
       -DCLO_SDK_DIR=C:/path/to/CLO_SDK_v7.3.240 `
       -DCMAKE_PREFIX_PATH=C:/Qt/5.15.2/msvc2019_64
 cmake --build build-msvc --config Release      # Release only - CLO won't load Debug
+# then copy build-msvc/Release/clo_mcp_plugin.dll
+#   -> C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\
 ```
+</details>
 
-### Install & use
+### Use
 
-1. Copy `build-msvc/Release/clo_mcp_plugin.dll` to
-   `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\` and restart CLO.
-2. **Settings → Plug-in → "MCP Listener (start / stop)"** — the status window
-   opens and the listener auto-starts on `127.0.0.1:5005`.
-3. That's it — CLO stays interactive while Claude works.
-
-Without the SDK you can still build and run `clo_mcp_test.exe` (a stub backend
-speaking the full protocol) to verify the host ↔ server plumbing.
+1. In CLO: **Settings → Plug-in → "MCP Listener (start / stop)"** — the status
+   window opens and the listener auto-starts on `127.0.0.1:5005`.
+2. That's it — CLO stays interactive while Claude works.
 
 ## Python listener (fallback, blocking on CLO 7)
 
@@ -175,7 +193,7 @@ UI замирает только на время действительно до
 лог — каждый запрос с результатом и таймингом, например
 `[14:23:05] simulate — ok (1840 ms)`.
 
-### Сборка плагина
+### Сборка и установка плагина (скрипты)
 
 Нужно: Visual Studio 2022 (MSVC C++), CMake ≥ 3.20, **Qt 5.15.x msvc2019_64**
 (CLO 7.3.240 несёт Qt 5.15.2 — точное совпадение) и CLO SDK
@@ -183,22 +201,42 @@ UI замирает только на время действительно до
 
 ```powershell
 cd clo_plugin
+.\build.ps1 -SdkDir C:\путь\к\CLO_SDK_v7.3.240    # добавь -QtDir C:\Qt\5.15.2\msvc2019_64, если Qt в другом месте
+.\install.ps1                                      # копирует DLL в папку API_Plug_in CLO
+```
+
+- `build.ps1` конфигурирует CMake (VS 2022, x64, Release) и собирает DLL.
+  С ключом `-StubOnly` соберёт `clo_mcp_test.exe` — заглушку с полным
+  протоколом без SDK, чтобы проверить связку хост ↔ сервер заранее.
+- `install.ps1` кладёт DLL в
+  `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\`. CLO
+  перечитывает DLL при каждом клике по меню, так что перезапуск не нужен —
+  кроме случая, когда листенер сейчас запущен (DLL запинена): тогда закрой CLO
+  и повтори, либо `.\install.ps1 -WaitForClose` — скопирует сам, как только
+  CLO закроется.
+- `uninstall.ps1` удаляет DLL (CLO нужно закрыть).
+
+Если выполнение скриптов запрещено политикой:
+`powershell -ExecutionPolicy Bypass -File .\build.ps1 …`
+
+<details><summary>Ручной эквивалент</summary>
+
+```powershell
+cd clo_plugin
 cmake -S . -B build-msvc -G "Visual Studio 17 2022" -A x64 `
       -DCLO_SDK_DIR=C:/путь/к/CLO_SDK_v7.3.240 `
       -DCMAKE_PREFIX_PATH=C:/Qt/5.15.2/msvc2019_64
 cmake --build build-msvc --config Release   # только Release - Debug CLO не загрузит
+# затем скопируй build-msvc/Release/clo_mcp_plugin.dll
+#   -> C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\
 ```
+</details>
 
-### Установка и использование
+### Использование
 
-1. Скопируй `build-msvc/Release/clo_mcp_plugin.dll` в
-   `C:\Users\Public\Documents\CLO\Assets\Preferences\API_Plug_in\` и перезапусти CLO.
-2. **Settings → Plug-in → «MCP Listener (start / stop)»** — откроется окно
-   статуса, листенер сам стартует на `127.0.0.1:5005`.
-3. Всё — CLO остаётся отзывчивым, пока Claude работает.
-
-Без SDK можно собрать и запустить `clo_mcp_test.exe` — заглушку с полным
-протоколом, чтобы проверить связку хост ↔ сервер заранее.
+1. В CLO: **Settings → Plug-in → «MCP Listener (start / stop)»** — откроется
+   окно статуса, листенер сам стартует на `127.0.0.1:5005`.
+2. Всё — CLO остаётся отзывчивым, пока Claude работает.
 
 ## Python-листенер (запасной, блокирующий на CLO 7)
 
