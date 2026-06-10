@@ -94,6 +94,15 @@ order for create_pattern, DXF winding for imports). So:
 - General rule: count mirror operations relating the two pieces' 2D layouts;
   odd count → flip one dir, even → keep equal.
 
+Cross-validated 2026-06-11 against the user's MANUAL sewing of the same skirt
+(def.zprj): 4 hand-made seams (UI clicks on mirrored segment ends) simulate to
+the exact same clean drape as the API seams — manual UI sewing ≡ add_seam with
+directions chosen by the mirror principle.
+
+`seam_info` lists existing seams (index, auto-name like "Sewing_3651",
+participating patterns) but the SDK does NOT expose per-seam line pairs or
+direction flags — verify sewing empirically (simulate + render), not by dump.
+
 For *imported* DXF the winding per piece is still unknown a priori — mitigate:
 - sew the few high-confidence structural seams only, not everything;
 - checkpoint first (see above);
