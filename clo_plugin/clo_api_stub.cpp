@@ -79,7 +79,15 @@ public:
     }
     int seamCount() override {
         qInfo("[stub] seam_count");
-        return 0;
+        return 1;
+    }
+    std::string seamName(int groupIndex) override {
+        qInfo("[stub] seam_name %d", groupIndex);
+        return "Seamline Pair Group " + std::to_string(groupIndex);
+    }
+    std::vector<unsigned int> seamGroupsInPattern(int patternIndex) override {
+        qInfo("[stub] seam_groups_in_pattern %d", patternIndex);
+        return {0};
     }
     int createPattern(const std::vector<std::tuple<float, float, int>>& points) override {
         qInfo("[stub] create_pattern with %d points", static_cast<int>(points.size()));

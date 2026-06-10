@@ -44,6 +44,8 @@ struct ICloApi {
     virtual void addSeam(int patternA, int lineA, int patternB, int lineB,
                          bool directionA, bool directionB) = 0;
     virtual int  seamCount() = 0;                                     // -> seamline pair groups
+    virtual std::string seamName(int groupIndex) = 0;                 // -> group's display name
+    virtual std::vector<unsigned int> seamGroupsInPattern(int patternIndex) = 0;
 
     // --- pattern drafting ----------------------------------------------------
     // Each point is (x, y, vertexType) in mm; vertexType 0 = straight,

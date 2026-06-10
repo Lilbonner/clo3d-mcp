@@ -10,6 +10,7 @@
 #include <QElapsedTimer>
 #include <QtGlobal>
 
+#include <map>
 #include <stdexcept>
 
 CloMcpServer::CloMcpServer(std::shared_ptr<ICloApi> api, QObject* parent)
@@ -183,6 +184,24 @@ QJsonObject CloMcpServer::dispatch(const QString& command, const QJsonObject& pa
         return {};
     }
     if (command == "seam_count")     return QJsonObject{{"count", api_->seamCount()}};
+
+    if (command == "seam_info") {
+        const int groups = api_->seamCount();
+        const int patterns = api_->patternCount();
+        std::map<int, QJsonArray> members;            // group index -> pattern indices
+        for (int p = 0; p < patterns; ++p)
+            for (unsigned int g : api_->seamGroupsInPattern(p))
+                members[static_cast<int>(g)].append(p);
+        QJsonArray seams;
+        for (int g = 0; g < groups; ++g) {
+            QJsonObject o;
+            o.insert("index", g);
+            o.insert("name", QString::fromStdString(api_->seamName(g)));
+            o.insert("patterns", members.count(g) ? members.at(g) : QJsonArray{});
+            seams.append(o);
+        }
+        return QJsonObject{{"seams", seams}};
+    }
 
     if (command == "create_pattern") {
         std::vector<std::tuple<float, float, int>> points;

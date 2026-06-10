@@ -163,6 +163,17 @@ def _handle(command, params):
     if command == "seam_count":
         return {"count": pattern_api.GetSeamlinePairGroupCount()}
 
+    if command == "seam_info":
+        members = {}
+        for p in range(pattern_api.GetPatternCount()):
+            for g in pattern_api.GetSeamlinePairGroupListInPattern(p):
+                members.setdefault(g, []).append(p)
+        seams = [{"index": g,
+                  "name": pattern_api.GetSeamlinePairGroupName(g),
+                  "patterns": members.get(g, [])}
+                 for g in range(pattern_api.GetSeamlinePairGroupCount())]
+        return {"seams": seams}
+
     if command == "create_pattern":
         points = [(float(p[0]), float(p[1]), int(p[2]) if len(p) > 2 else 0)
                   for p in params["points"]]

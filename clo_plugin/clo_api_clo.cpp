@@ -121,6 +121,15 @@ public:
         return PATTERN_API->GetSeamlinePairGroupCount();
     }
 
+    std::string seamName(int groupIndex) override {
+        return PATTERN_API->GetSeamlinePairGroupName(groupIndex);
+    }
+
+    std::vector<unsigned int> seamGroupsInPattern(int patternIndex) override {
+        return PATTERN_API->GetSeamlinePairGroupListInPattern(
+            static_cast<unsigned int>(patternIndex));
+    }
+
     int createPattern(const std::vector<std::tuple<float, float, int>>& points) override {
         // CreatePatternWithPoints returns the new pattern index (0 is valid:
         // an empty scene's first piece). The SDK gives no failure signal.

@@ -257,6 +257,21 @@ def seam_count() -> str:
     return f"{result.get('count')} seamline pair groups."
 
 
+@mcp.tool()
+def seam_info() -> str:
+    """List every seamline pair group: index, name, participating pattern indices.
+
+    Use to analyze existing (e.g. manually made) sewing in the scene.
+    """
+    result = _run("seam_info")
+    seams = result.get("seams", [])
+    if not seams:
+        return "No seams in the scene."
+    return "\n".join(
+        f"[{s.get('index')}] {s.get('name') or '(unnamed)'} — patterns {s.get('patterns')}"
+        for s in seams)
+
+
 # --- pattern drafting ---------------------------------------------------------
 
 @mcp.tool()
